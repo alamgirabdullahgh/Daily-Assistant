@@ -13,6 +13,16 @@
   #bar button { width:60px; height:60px; border:0; border-radius:50%; font-size:26px; background:#fff; box-shadow:0 3px 10px #0006; }
   #bar button.on { background:#ff8aa5; }
   #credit { position:fixed; bottom:4px; right:8px; font-size:9px; color:#fff6; z-index:5; }
+  #upd.new { background:#7cffb2; animation:pl 1.2s infinite; }
+  @keyframes pl { 50% { transform:scale(1.12); } }
+  #sheet { position:fixed; inset:0; z-index:20; display:flex; align-items:flex-end; justify-content:center; background:#0008; }
+  #sheet[hidden] { display:none; }
+  #sheet .card { width:100%; max-width:480px; background:#2a2336; color:#fff; border-radius:22px 22px 0 0; padding:20px 20px calc(env(safe-area-inset-bottom) + 20px); display:flex; flex-direction:column; gap:10px; }
+  #sheet h3 { margin:0; font-size:19px; }
+  #ver { font-size:14px; color:#d6cfe6; white-space:pre-line; line-height:1.7; }
+  #msg { font-size:15px; font-weight:600; min-height:22px; }
+  #sheet button { border:0; border-radius:14px; padding:13px 16px; font-size:16px; background:#ffffff1f; color:#fff; font-family:inherit; }
+  #sheet button.main { background:#ff8aa5; color:#2a1020; font-weight:700; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./lib/three.module.js" } }
@@ -20,7 +30,14 @@
 </head>
 <body>
 <div id="status">লোড হচ্ছে…</div>
-<div id="bar"><button id="lang">🌐</button><button id="mic">🎤</button><button id="voice">🔊</button></div>
+<div id="bar"><button id="lang">🌐</button><button id="mic">🎤</button><button id="voice">🔊</button><button id="upd">⬇️</button></div>
+<div id="sheet" hidden><div class="card">
+  <h3>অ্যাপ আপডেট</h3>
+  <div id="ver"></div><div id="msg"></div>
+  <button class="main" id="dl">⬇️ সর্বশেষ APK ডাউনলোড করুন</button>
+  <button id="ref">🔄 কনটেন্ট রিফ্রেশ করুন</button>
+  <button id="cls">বন্ধ করুন</button>
+</div></div>
 <div id="credit">Avatar: Ready Player Me, CC BY-NC 4.0</div>
 
 <script type="module">
@@ -254,6 +271,45 @@ async function autoStart(){ if (listening || manualStop) return; if (isNative) a
 $('mic').onclick = () => { if (listening){ manualStop = true; if (isNative){ listening = false; try{ SR.stop(); }catch(e){} $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else if (canWebTTS){ listening = false; try{ webRec && webRec.stop(); }catch(e){} speechSynthesis.cancel(); $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else stopListening(); } else { manualStop = false; autoStart(); } };
 document.addEventListener('visibilitychange', () => { if (!document.hidden){ if (ctx) ctx.resume(); if (!listening) autoStart(); } });
 setInterval(() => { if (!isNative && listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
+
+/* ---------- update option ---------- */
+const REPO = 'alamgirabdullahgh/talking-woman';
+const APK_URL = 'https://github.com/' + REPO + '/releases/latest/download/TalkingWoman.apk';
+let installedBuild = null, latestBuild = null;
+async function getInstalled(){
+  try{ const A = Cap && Cap.Plugins && Cap.Plugins.App; if (A && A.getInfo){ const i = await A.getInfo(); return parseInt(i.build) || null; } }catch(e){}
+  return null;
+}
+async function checkUpdate(){
+  let web = '';
+  installedBuild = await getInstalled();
+  try{ web = (await (await fetch('./version.json?' + Date.now(), { cache:'no-store' })).json()).version; }catch(e){}
+  latestBuild = null;
+  try{
+    const j = await (await fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers:{ Accept:'application/vnd.github+json' } })).json();
+    latestBuild = parseInt(String(j.tag_name).replace(/\D/g, '')) || null;
+  }catch(e){}
+  $('ver').textContent = 'কনটেন্ট ভার্সন: ' + (web || '—') + '\nইনস্টল করা অ্যাপ: ' + (installedBuild ? 'v' + installedBuild : (isNative ? 'অজানা' : 'ওয়েব')) + '\nসর্বশেষ APK: ' + (latestBuild ? 'v' + latestBuild : '—');
+  const newer = !!(latestBuild && installedBuild && latestBuild > installedBuild);
+  $('msg').textContent = !latestBuild ? 'আপডেট চেক করা যায়নি, ইন্টারনেট দেখুন'
+    : newer ? '🆕 নতুন ভার্সন (v' + latestBuild + ') পাওয়া গেছে'
+    : installedBuild ? '✅ আপনি সর্বশেষ ভার্সনে আছেন'
+    : 'সর্বশেষ APK: v' + latestBuild + ' (ডাউনলোড করতে নিচের বাটন)';
+  $('upd').classList.toggle('new', newer);
+  return newer;
+}
+$('upd').onclick = () => { $('sheet').hidden = false; $('msg').textContent = 'চেক করা হচ্ছে…'; checkUpdate(); };
+$('cls').onclick = () => { $('sheet').hidden = true; };
+$('sheet').addEventListener('pointerdown', e => { if (e.target === $('sheet')) $('sheet').hidden = true; });
+$('dl').onclick = () => { location.href = APK_URL; };
+$('ref').onclick = async () => {
+  try{
+    if ('caches' in window) for (const k of await caches.keys()) await caches.delete(k);
+    if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+  }catch(e){}
+  location.href = location.pathname + '?v=' + Date.now();
+};
+if (isNative) setTimeout(async () => { if (await checkUpdate()) setStatus('🆕 নতুন আপডেট আছে, ⬇️ চাপুন'); }, 5000);
 </script>
 </body>
 </html>
