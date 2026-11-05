@@ -9,8 +9,9 @@
   html,body { margin:0; height:100%; overflow:hidden; background:#1b1722; font-family:system-ui,sans-serif; }
   canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
   #status { position:fixed; top:calc(env(safe-area-inset-top) + 12px); left:50%; transform:translateX(-50%); padding:6px 16px; border-radius:20px; background:#000a; color:#fff; font-size:14px; z-index:5; white-space:nowrap; }
-  #mic { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 22px); left:50%; transform:translateX(-50%); width:64px; height:64px; border:0; border-radius:50%; font-size:28px; background:#fff; box-shadow:0 3px 10px #0006; z-index:5; }
-  #mic.on { background:#ff8aa5; }
+  #bar { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 22px); left:50%; transform:translateX(-50%); display:flex; gap:14px; z-index:5; }
+  #bar button { width:60px; height:60px; border:0; border-radius:50%; font-size:26px; background:#fff; box-shadow:0 3px 10px #0006; }
+  #bar button.on { background:#ff8aa5; }
   #credit { position:fixed; bottom:4px; right:8px; font-size:9px; color:#fff6; z-index:5; }
 </style>
 <script type="importmap">
@@ -19,7 +20,7 @@
 </head>
 <body>
 <div id="status">লোড হচ্ছে…</div>
-<button id="mic">🎤</button>
+<div id="bar"><button id="lang">🌐</button><button id="mic">🎤</button><button id="voice">🔊</button></div>
 <div id="credit">Avatar: Ready Player Me, CC BY-NC 4.0</div>
 
 <script type="module">
@@ -90,7 +91,8 @@ renderer.setAnimationLoop(() => {
   }
   // mouth from live output amplitude
   let amp = 0;
-  if (speaking && outAnalyser){
+  if (speaking && nativeSpeak){ amp = Math.max(0, Math.min(1, (0.5 + 0.5*Math.sin(t*13) * (0.6+0.4*Math.sin(t*5.3))) * (0.55 + 0.45*Math.random()))); }
+  else if (speaking && outAnalyser){
     const a = new Uint8Array(outAnalyser.fftSize); outAnalyser.getByteTimeDomainData(a);
     let s = 0; for (const v of a){ const x=(v-128)/128; s += x*x; } amp = Math.min(1, Math.sqrt(s/a.length) * 5);
   }
@@ -163,10 +165,60 @@ async function onRecDone(){
     s.start();
   }catch(e){ busy = false; }
 }
-async function autoStart(){ if (!listening && !manualStop) await startListening(); }
-$('mic').onclick = () => { if (listening){ manualStop = true; stopListening(); } else { manualStop = false; startListening(); } };
+
+/* ---------- native mode: real female TTS (Android app) ---------- */
+const Cap = window.Capacitor;
+const SR = Cap && Cap.Plugins && Cap.Plugins.SpeechRecognition;
+const TTS = Cap && Cap.Plugins && Cap.Plugins.TextToSpeech;
+const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform() && SR && TTS);
+let nativeSpeak = false, nativeOn = false, lang = localStorage.getItem('lang') || 'bn-BD', voices = [], voiceIdx = parseInt(localStorage.getItem('voice') ?? '-1');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function say(text){
+  nativeSpeak = true; speaking = true; setStatus('💬 ' + text);
+  try{
+    const o = { text, lang, rate: 1.0, pitch: 1.1, volume: 1.0, category: 'playback', queueStrategy: 0 };
+    if (voiceIdx >= 0) o.voice = voiceIdx;
+    await TTS.speak(o);
+  }catch(e){ setStatus('এই ভাষার কণ্ঠ ফোনে নেই। Settings → Text-to-speech থেকে ভাষা ডাউনলোড করুন'); await sleep(2500); }
+  nativeSpeak = false; speaking = false;
+}
+async function nativeLoop(){
+  if (nativeOn) return; nativeOn = true;
+  try{
+    const p = await SR.requestPermissions();
+    if (p.speechRecognition !== 'granted'){ setStatus('মাইকের অনুমতি দিন'); nativeOn = false; return; }
+    const av = await SR.available(); if (!av.available){ setStatus('এই ফোনে Google voice recognition নেই'); nativeOn = false; return; }
+  }catch(e){}
+  try{ voices = (await TTS.getSupportedVoices()).voices || []; }catch(e){}
+  listening = true; $('mic').classList.add('on');
+  while (listening){
+    try{
+      setStatus('আমি শুনছি… কিছু বলুন 🙂');
+      const r = await SR.start({ language: lang, maxResults: 1, prompt: '', partialResults: false, popup: false });
+      const text = r && r.matches && r.matches[0];
+      if (text && listening) await say(text);
+    }catch(e){ await sleep(500); }
+  }
+  nativeOn = false;
+}
+$('lang').onclick = () => {
+  lang = (lang === 'bn-BD') ? 'en-US' : 'bn-BD'; localStorage.setItem('lang', lang); voiceIdx = -1; localStorage.setItem('voice','-1');
+  setStatus(lang === 'bn-BD' ? 'ভাষা: বাংলা' : 'Language: English');
+  if (isNative && SR) { try{ SR.stop(); }catch(e){} }
+};
+$('voice').onclick = async () => {
+  if (!isNative){ setStatus('নারী কণ্ঠ বদলাতে অ্যাপ ব্যবহার করুন'); return; }
+  const c = voices.map((v,i)=>({v,i})).filter(x => (x.v.lang||'').toLowerCase().replace('_','-').startsWith(lang.slice(0,2).toLowerCase()));
+  if (!c.length){ setStatus('এই ভাষার কোনো কণ্ঠ পাওয়া যায়নি'); return; }
+  const pos = c.findIndex(x => x.i === voiceIdx);
+  voiceIdx = c[(pos + 1) % c.length].i; localStorage.setItem('voice', String(voiceIdx));
+  try{ SR.stop(); }catch(e){}
+  await say(lang === 'bn-BD' ? 'আমি এই কণ্ঠে কথা বলছি' : 'This is my voice');
+};
+async function autoStart(){ if (listening || manualStop) return; if (isNative) await nativeLoop(); else await startListening(); }
+$('mic').onclick = () => { if (listening){ manualStop = true; if (isNative){ listening = false; try{ SR.stop(); }catch(e){} $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else stopListening(); } else { manualStop = false; autoStart(); } };
 document.addEventListener('visibilitychange', () => { if (!document.hidden){ if (ctx) ctx.resume(); if (!listening) autoStart(); } });
-setInterval(() => { if (listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
+setInterval(() => { if (!isNative && listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
 </script>
 </body>
 </html>
