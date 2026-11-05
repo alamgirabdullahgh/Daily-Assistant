@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Talking Woman</title>
+<style>
+  :root { --scarf:#7b3fa0; --dress:#e2557a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, sans-serif; }
+  body { background: linear-gradient(#bfe8ff 0%, #e9f7ff 60%, #ffe9c7 60%, #ffd9a0 100%); display:flex; flex-direction:column; align-items:center; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  #status { margin-top:12px; padding:6px 16px; border-radius:20px; background:#ffffffcc; font-size:14px; color:#444; }
+  #stage { flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+  svg { height: 100%; max-height: 520px; width:auto; }
+  #char { transform-origin: 50% 100%; }
+  .bounce { animation: bounce .5s; }
+  @keyframes bounce { 0%{transform:scale(1,1)} 30%{transform:scale(1.06,.92)} 60%{transform:scale(.97,1.05)} 100%{transform:scale(1,1)} }
+  .talk #mouth { animation: talk .18s infinite alternate; }
+  @keyframes talk { from{ transform: scaleY(.3);} to{ transform: scaleY(1.6);} }
+  #mouth { transform-origin: 50% 50%; transform-box: fill-box; }
+  .eye { transform-origin: 50% 50%; transform-box: fill-box; animation: blink 4s infinite; }
+  @keyframes blink { 0%,94%,100%{transform:scaleY(1)} 97%{transform:scaleY(.1)} }
+  #bar { display:flex; gap:10px; padding:12px; }
+  button { border:0; border-radius:50%; width:64px; height:64px; font-size:30px; background:#fff; box-shadow:0 3px 8px #0003; }
+  button.on { background:#ff8aa5; }
+  #food { position:absolute; font-size:48px; display:none; }
+</style>
+</head>
+<body>
+<div id="status">মাইক চালু করতে 🎤 চাপুন</div>
+<div id="stage">
+  <svg id="svg" viewBox="0 0 300 520">
+    <g id="char">
+      <!-- body / dress -->
+      <path d="M70 520 L90 330 Q150 300 210 330 L230 520 Z" fill="var(--dress)"/>
+      <!-- arms -->
+      <path d="M90 340 Q55 410 75 470" stroke="#f1c7a0" stroke-width="22" fill="none" stroke-linecap="round"/>
+      <path d="M210 340 Q245 410 225 470" stroke="#f1c7a0" stroke-width="22" fill="none" stroke-linecap="round"/>
+      <!-- scarf back -->
+      <path d="M60 230 Q60 90 150 85 Q240 90 240 230 Q245 330 200 350 L100 350 Q55 330 60 230Z" fill="var(--scarf)"/>
+      <!-- face -->
+      <ellipse cx="150" cy="215" rx="68" ry="78" fill="#f7d3b0"/>
+      <!-- scarf front rim -->
+      <path d="M78 205 Q80 120 150 118 Q220 120 222 205 Q210 150 150 148 Q90 150 78 205Z" fill="var(--scarf)"/>
+      <!-- cheeks -->
+      <circle cx="108" cy="245" r="13" fill="#ff9aa8" opacity=".55"/>
+      <circle cx="192" cy="245" r="13" fill="#ff9aa8" opacity=".55"/>
+      <!-- eyes -->
+      <g class="eye"><ellipse cx="122" cy="210" rx="11" ry="14" fill="#fff"/><circle cx="123" cy="212" r="7" fill="#3a2418"/><circle cx="126" cy="208" r="2.5" fill="#fff"/></g>
+      <g class="eye"><ellipse cx="178" cy="210" rx="11" ry="14" fill="#fff"/><circle cx="177" cy="212" r="7" fill="#3a2418"/><circle cx="180" cy="208" r="2.5" fill="#fff"/></g>
+      <!-- brows -->
+      <path d="M107 188 Q122 180 136 188" stroke="#4a2c1a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <path d="M164 188 Q178 180 193 188" stroke="#4a2c1a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <!-- nose -->
+      <path d="M150 222 Q146 238 152 240" stroke="#d9a47e" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- mouth -->
+      <ellipse id="mouth" cx="150" cy="268" rx="15" ry="9" fill="#a8324a"/>
+    </g>
+  </svg>
+</div>
+<div id="food">🍎</div>
+<div id="bar">
+  <button id="mic">🎤</button>
+  <button id="feed">🍎</button>
+  <button id="dressBtn">👗</button>
+  <button id="scarfBtn">🧕</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const char = $('char'), status = $('status'), root = document.documentElement;
+let ctx, stream, analyser, rec, chunks = [], recording = false, listening = false, busy = false, lastLoud = 0, startedAt = 0;
+
+function setStatus(t){ status.textContent = t; }
+function bounce(){ char.classList.remove('bounce'); void char.offsetWidth; char.classList.add('bounce'); }
+function beep(f=700, d=.12){
+  ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = f; o.type='sine'; g.gain.value=.15;
+  o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+d);
+}
+
+async function startListening(){
+  try{
+    ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
+    await ctx.resume();
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } });
+    const src = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
+    listening = true; $('mic').classList.add('on'); setStatus('আমি শুনছি… কিছু বলুন 🙂');
+    loop();
+  }catch(e){ setStatus('মাইক অনুমতি পাওয়া যায়নি'); }
+}
+function stopListening(){
+  listening = false; $('mic').classList.remove('on');
+  if (stream) stream.getTracks().forEach(t=>t.stop());
+  setStatus('মাইক বন্ধ');
+}
+function level(){
+  const a = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(a);
+  let s=0; for (const v of a){ const x=(v-128)/128; s+=x*x; } return Math.sqrt(s/a.length);
+}
+function loop(){
+  if (!listening) return;
+  if (!busy){
+    const l = level(), now = performance.now();
+    if (l > 0.04){
+      lastLoud = now;
+      if (!recording) beginRec();
+    } else if (recording && now - lastLoud > 800){
+      endRec();
+    }
+    if (recording && now - startedAt > 10000) endRec();
+  }
+  requestAnimationFrame(loop);
+}
+function beginRec(){
+  chunks = []; rec = new MediaRecorder(stream);
+  rec.ondataavailable = e => chunks.push(e.data);
+  rec.onstop = onRecDone;
+  rec.start(); recording = true; startedAt = performance.now();
+}
+function endRec(){ recording = false; if (rec && rec.state !== 'inactive') rec.stop(); }
+async function onRecDone(){
+  if (performance.now() - startedAt < 500) return;
+  busy = true;
+  try{
+    const buf = await ctx.decodeAudioData(await new Blob(chunks).arrayBuffer());
+    const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = 1.45;
+    s.connect(ctx.destination);
+    document.body.classList.add('talk'); setStatus('💬');
+    s.onended = () => { document.body.classList.remove('talk'); busy = false; setStatus('আমি শুনছি… কিছু বলুন 🙂'); };
+    s.start();
+  }catch(e){ busy = false; }
+}
+
+$('mic').onclick = () => listening ? stopListening() : startListening();
+$('feed').onclick = () => {
+  const foods = ['🍎','🍌','🍰','🍓','🍪','🍉']; const f = $('food');
+  f.textContent = foods[Math.floor(Math.random()*foods.length)];
+  const r = char.getBoundingClientRect();
+  f.style.left = (r.left + r.width/2 - 24) + 'px'; f.style.top = (r.top + r.height*.45) + 'px'; f.style.display='block';
+  beep(520,.1); setTimeout(()=>{ beep(780,.1); f.style.display='none'; bounce(); document.body.classList.add('talk'); setTimeout(()=>document.body.classList.remove('talk'),700); }, 500);
+};
+const dresses = ['#e2557a','#2e86de','#27ae60','#f39c12','#8e44ad','#2c3e50'];
+const scarves = ['#7b3fa0','#c0392b','#16a085','#2c3e50','#e67e22','#d35400'];
+let di=0, si=0;
+$('dressBtn').onclick = () => { di=(di+1)%dresses.length; root.style.setProperty('--dress', dresses[di]); bounce(); beep(600); };
+$('scarfBtn').onclick = () => { si=(si+1)%scarves.length; root.style.setProperty('--scarf', scarves[si]); bounce(); beep(660); };
+$('svg').onclick = () => { bounce(); beep(900,.08); document.body.classList.add('talk'); setTimeout(()=>document.body.classList.remove('talk'),400); };
+</script>
+</body>
+</html>

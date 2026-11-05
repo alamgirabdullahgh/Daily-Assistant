@@ -1,0 +1,9 @@
+{
+  "appId": "com.alamgir.talkingwoman",
+  "appName": "Talking Woman",
+  "webDir": "www",
+  "server": {
+    "url": "https://alamgirabdullahgh.github.io/talking-woman/",
+    "androidScheme": "https"
+  }
+}
