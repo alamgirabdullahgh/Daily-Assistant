@@ -27,7 +27,7 @@
 </style>
 </head>
 <body>
-<div id="status">মাইক চালু করতে 🎤 চাপুন</div>
+<div id="status">একটু অপেক্ষা করুন…</div>
 <div id="stage">
   <svg id="svg" viewBox="0 0 300 520">
     <g id="char">
@@ -89,12 +89,12 @@ async function startListening(){
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
     listening = true; $('mic').classList.add('on'); setStatus('আমি শুনছি… কিছু বলুন 🙂');
     loop();
-  }catch(e){ setStatus('মাইক অনুমতি পাওয়া যায়নি'); }
+  }catch(e){ setStatus('মাইকের অনুমতি দিন, তারপর স্ক্রিনে একবার ট্যাপ করুন'); }
 }
 function stopListening(){
   listening = false; $('mic').classList.remove('on');
   if (stream) stream.getTracks().forEach(t=>t.stop());
-  setStatus('মাইক বন্ধ');
+  setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)');
 }
 function level(){
   const a = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(a);
@@ -135,6 +135,17 @@ async function onRecDone(){
 }
 
 $('mic').onclick = () => listening ? stopListening() : startListening();
+// Auto-start: talk directly, no button press needed
+let manualStop = false;
+$('mic').addEventListener('click', () => { manualStop = !listening; });
+async function autoStart(){ if (!listening && !manualStop) await startListening(); }
+window.addEventListener('load', autoStart);
+// If the WebView blocks audio until first touch, any tap anywhere starts it
+document.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); autoStart(); }, { passive:true });
+// Resume listening when returning to the app
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (ctx) ctx.resume(); if (!listening) autoStart(); } });
+// Keep going if the mic stream is cut by the system
+setInterval(() => { if (listening && stream && !stream.active) { listening = false; autoStart(); } }, 3000);
 $('feed').onclick = () => {
   const foods = ['🍎','🍌','🍰','🍓','🍪','🍉']; const f = $('food');
   f.textContent = foods[Math.floor(Math.random()*foods.length)];
