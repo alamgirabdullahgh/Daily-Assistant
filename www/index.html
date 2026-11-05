@@ -176,7 +176,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function say(text){
   nativeSpeak = true; speaking = true; setStatus('💬 ' + text);
   try{
-    const o = { text, lang, rate: 1.0, pitch: 1.1, volume: 1.0, category: 'playback', queueStrategy: 0 };
+    const o = { text, lang, rate: 1.0, pitch: 1.2, volume: 1.0, category: 'playback', queueStrategy: 0 };
     if (voiceIdx >= 0) o.voice = voiceIdx;
     await TTS.speak(o);
   }catch(e){ setStatus('এই ভাষার কণ্ঠ ফোনে নেই। Settings → Text-to-speech থেকে ভাষা ডাউনলোড করুন'); await sleep(2500); }
@@ -190,6 +190,7 @@ async function nativeLoop(){
     const av = await SR.available(); if (!av.available){ setStatus('এই ফোনে Google voice recognition নেই'); nativeOn = false; return; }
   }catch(e){}
   try{ voices = (await TTS.getSupportedVoices()).voices || []; }catch(e){}
+  if (voiceIdx < 0){ const f = voices.findIndex(v => /female/i.test(v.name||'') && (v.lang||'').toLowerCase().replace('_','-').startsWith(lang.slice(0,2).toLowerCase())); if (f >= 0) voiceIdx = f; }
   listening = true; $('mic').classList.add('on');
   while (listening){
     try{
@@ -201,13 +202,47 @@ async function nativeLoop(){
   }
   nativeOn = false;
 }
+
+/* ---------- web mode: browser speech recognition + female TTS ---------- */
+const WSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const canWebTTS = !isNative && !!(WSR && window.speechSynthesis);
+let webOn = false, webRec = null;
+function pickWebVoice(){
+  const pre = lang.slice(0,2).toLowerCase();
+  const vs = speechSynthesis.getVoices().filter(v => (v.lang||'').toLowerCase().replace('_','-').startsWith(pre));
+  return vs.find(v => /female|nabanita|tanishaa|zira|heera|samantha/i.test(v.name)) || vs[0] || null;
+}
+function webSay(text){
+  return new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text), v = pickWebVoice();
+    if (v){ u.voice = v; u.lang = v.lang; } else u.lang = lang;
+    u.pitch = 1.25; u.rate = 1;
+    nativeSpeak = true; speaking = true; setStatus('💬 ' + text);
+    u.onend = u.onerror = () => { nativeSpeak = false; speaking = false; res(); };
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  });
+}
+async function webLoop(){
+  if (webOn) return; webOn = true; listening = true; $('mic').classList.add('on');
+  while (listening){
+    const text = await new Promise(res => {
+      const r = new WSR(); webRec = r; r.lang = lang; r.interimResults = false; r.maxAlternatives = 1;
+      r.onresult = e => res(e.results[0][0].transcript);
+      r.onerror = ev => { if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){ listening = false; setStatus('মাইকের অনুমতি দিন, তারপর স্ক্রিনে একবার ট্যাপ করুন'); } res(null); };
+      r.onend = () => res(null);
+      try{ setStatus('আমি শুনছি… কিছু বলুন 🙂'); r.start(); }catch(e){ res(null); }
+    });
+    if (text && listening) await webSay(text); else if (listening) await sleep(400);
+  }
+  webOn = false; $('mic').classList.remove('on');
+}
 $('lang').onclick = () => {
   lang = (lang === 'bn-BD') ? 'en-US' : 'bn-BD'; localStorage.setItem('lang', lang); voiceIdx = -1; localStorage.setItem('voice','-1');
   setStatus(lang === 'bn-BD' ? 'ভাষা: বাংলা' : 'Language: English');
   if (isNative && SR) { try{ SR.stop(); }catch(e){} }
 };
 $('voice').onclick = async () => {
-  if (!isNative){ setStatus('নারী কণ্ঠ বদলাতে অ্যাপ ব্যবহার করুন'); return; }
+  if (!isNative){ setStatus(canWebTTS ? 'ব্রাউজারে নারী কণ্ঠ স্বয়ংক্রিয়ভাবে বাছাই হয়' : 'নারী কণ্ঠ বদলাতে অ্যাপ ব্যবহার করুন'); return; }
   const c = voices.map((v,i)=>({v,i})).filter(x => (x.v.lang||'').toLowerCase().replace('_','-').startsWith(lang.slice(0,2).toLowerCase()));
   if (!c.length){ setStatus('এই ভাষার কোনো কণ্ঠ পাওয়া যায়নি'); return; }
   const pos = c.findIndex(x => x.i === voiceIdx);
@@ -215,8 +250,8 @@ $('voice').onclick = async () => {
   try{ SR.stop(); }catch(e){}
   await say(lang === 'bn-BD' ? 'আমি এই কণ্ঠে কথা বলছি' : 'This is my voice');
 };
-async function autoStart(){ if (listening || manualStop) return; if (isNative) await nativeLoop(); else await startListening(); }
-$('mic').onclick = () => { if (listening){ manualStop = true; if (isNative){ listening = false; try{ SR.stop(); }catch(e){} $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else stopListening(); } else { manualStop = false; autoStart(); } };
+async function autoStart(){ if (listening || manualStop) return; if (isNative) await nativeLoop(); else if (canWebTTS) await webLoop(); else await startListening(); }
+$('mic').onclick = () => { if (listening){ manualStop = true; if (isNative){ listening = false; try{ SR.stop(); }catch(e){} $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else if (canWebTTS){ listening = false; try{ webRec && webRec.stop(); }catch(e){} speechSynthesis.cancel(); $('mic').classList.remove('on'); setStatus('মাইক বন্ধ (🎤 চাপলে আবার চালু)'); } else stopListening(); } else { manualStop = false; autoStart(); } };
 document.addEventListener('visibilitychange', () => { if (!document.hidden){ if (ctx) ctx.resume(); if (!listening) autoStart(); } });
 setInterval(() => { if (!isNative && listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
 </script>
