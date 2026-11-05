@@ -5,80 +5,114 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Talking Woman</title>
 <style>
-  :root { --scarf:#7b3fa0; --dress:#e2557a; }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
-  html, body { margin:0; height:100%; overflow:hidden; font-family: system-ui, sans-serif; }
-  body { background: linear-gradient(#bfe8ff 0%, #e9f7ff 60%, #ffe9c7 60%, #ffd9a0 100%); display:flex; flex-direction:column; align-items:center; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
-  #status { margin-top:12px; padding:6px 16px; border-radius:20px; background:#ffffffcc; font-size:14px; color:#444; }
-  #stage { flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; }
-  svg { height: 100%; max-height: 520px; width:auto; }
-  #char { transform-origin: 50% 100%; }
-  .bounce { animation: bounce .5s; }
-  @keyframes bounce { 0%{transform:scale(1,1)} 30%{transform:scale(1.06,.92)} 60%{transform:scale(.97,1.05)} 100%{transform:scale(1,1)} }
-  .talk #mouth { animation: talk .18s infinite alternate; }
-  @keyframes talk { from{ transform: scaleY(.3);} to{ transform: scaleY(1.6);} }
-  #mouth { transform-origin: 50% 50%; transform-box: fill-box; }
-  .eye { transform-origin: 50% 50%; transform-box: fill-box; animation: blink 4s infinite; }
-  @keyframes blink { 0%,94%,100%{transform:scaleY(1)} 97%{transform:scaleY(.1)} }
-  #bar { display:flex; gap:10px; padding:12px; }
-  button { border:0; border-radius:50%; width:64px; height:64px; font-size:30px; background:#fff; box-shadow:0 3px 8px #0003; }
-  button.on { background:#ff8aa5; }
-  #food { position:absolute; font-size:48px; display:none; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { margin:0; height:100%; overflow:hidden; background:#1b1722; font-family:system-ui,sans-serif; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #status { position:fixed; top:calc(env(safe-area-inset-top) + 12px); left:50%; transform:translateX(-50%); padding:6px 16px; border-radius:20px; background:#000a; color:#fff; font-size:14px; z-index:5; white-space:nowrap; }
+  #mic { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 22px); left:50%; transform:translateX(-50%); width:64px; height:64px; border:0; border-radius:50%; font-size:28px; background:#fff; box-shadow:0 3px 10px #0006; z-index:5; }
+  #mic.on { background:#ff8aa5; }
+  #credit { position:fixed; bottom:4px; right:8px; font-size:9px; color:#fff6; z-index:5; }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js" } }
+</script>
 </head>
 <body>
-<div id="status">একটু অপেক্ষা করুন…</div>
-<div id="stage">
-  <svg id="svg" viewBox="0 0 300 520">
-    <g id="char">
-      <!-- body / dress -->
-      <path d="M70 520 L90 330 Q150 300 210 330 L230 520 Z" fill="var(--dress)"/>
-      <!-- arms -->
-      <path d="M90 340 Q55 410 75 470" stroke="#f1c7a0" stroke-width="22" fill="none" stroke-linecap="round"/>
-      <path d="M210 340 Q245 410 225 470" stroke="#f1c7a0" stroke-width="22" fill="none" stroke-linecap="round"/>
-      <!-- scarf back -->
-      <path d="M60 230 Q60 90 150 85 Q240 90 240 230 Q245 330 200 350 L100 350 Q55 330 60 230Z" fill="var(--scarf)"/>
-      <!-- face -->
-      <ellipse cx="150" cy="215" rx="68" ry="78" fill="#f7d3b0"/>
-      <!-- scarf front rim -->
-      <path d="M78 205 Q80 120 150 118 Q220 120 222 205 Q210 150 150 148 Q90 150 78 205Z" fill="var(--scarf)"/>
-      <!-- cheeks -->
-      <circle cx="108" cy="245" r="13" fill="#ff9aa8" opacity=".55"/>
-      <circle cx="192" cy="245" r="13" fill="#ff9aa8" opacity=".55"/>
-      <!-- eyes -->
-      <g class="eye"><ellipse cx="122" cy="210" rx="11" ry="14" fill="#fff"/><circle cx="123" cy="212" r="7" fill="#3a2418"/><circle cx="126" cy="208" r="2.5" fill="#fff"/></g>
-      <g class="eye"><ellipse cx="178" cy="210" rx="11" ry="14" fill="#fff"/><circle cx="177" cy="212" r="7" fill="#3a2418"/><circle cx="180" cy="208" r="2.5" fill="#fff"/></g>
-      <!-- brows -->
-      <path d="M107 188 Q122 180 136 188" stroke="#4a2c1a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-      <path d="M164 188 Q178 180 193 188" stroke="#4a2c1a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-      <!-- nose -->
-      <path d="M150 222 Q146 238 152 240" stroke="#d9a47e" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <!-- mouth -->
-      <ellipse id="mouth" cx="150" cy="268" rx="15" ry="9" fill="#a8324a"/>
-    </g>
-  </svg>
-</div>
-<div id="food">🍎</div>
-<div id="bar">
-  <button id="mic">🎤</button>
-  <button id="feed">🍎</button>
-  <button id="dressBtn">👗</button>
-  <button id="scarfBtn">🧕</button>
-</div>
+<div id="status">লোড হচ্ছে…</div>
+<button id="mic">🎤</button>
+<div id="credit">Avatar: Ready Player Me, CC BY-NC 4.0</div>
 
-<script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
+
 const $ = id => document.getElementById(id);
-const char = $('char'), status = $('status'), root = document.documentElement;
-let ctx, stream, analyser, rec, chunks = [], recording = false, listening = false, busy = false, lastLoud = 0, startedAt = 0;
+const statusEl = $('status');
+const setStatus = t => statusEl.textContent = t;
 
-function setStatus(t){ status.textContent = t; }
-function bounce(){ char.classList.remove('bounce'); void char.offsetWidth; char.classList.add('bounce'); }
-function beep(f=700, d=.12){
-  ctx = ctx || new (window.AudioContext||window.webkitAudioContext)();
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.frequency.value = f; o.type='sine'; g.gain.value=.15;
-  o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+d);
+/* ---------- 3D scene ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2336);
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 20);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x554466, 1.1));
+const key = new THREE.DirectionalLight(0xfff0e0, 2.2); key.position.set(1.2, 2.2, 2.5); scene.add(key);
+const rim = new THREE.DirectionalLight(0x9fb4ff, 1.0); rim.position.set(-2, 1.8, -1.5); scene.add(rim);
+
+let head, neck, spine, morphMeshes = [], baseHead = new THREE.Euler(), baseNeck = new THREE.Euler();
+let headPos = new THREE.Vector3();
+
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); camera.aspect = w/h;
+  const dist = (w/h < 0.8) ? 1.15 : 0.95;
+  camera.position.set(headPos.x, headPos.y + 0.02, headPos.z + dist);
+  camera.lookAt(headPos.x, headPos.y - 0.13, headPos.z);
+  camera.updateProjectionMatrix();
 }
+addEventListener('resize', resize);
+
+new GLTFLoader().load('./models/woman.glb', gltf => {
+  const model = gltf.scene; scene.add(model);
+  model.traverse(o => {
+    if (o.name === 'Wolf3D_Glasses') o.visible = false;
+    if (o.isMesh && o.morphTargetDictionary) morphMeshes.push(o);
+  });
+  head = model.getObjectByName('Head'); neck = model.getObjectByName('Neck');
+  if (head) baseHead.copy(head.rotation); if (neck) baseNeck.copy(neck.rotation);
+  model.updateMatrixWorld(true);
+  if (head) head.getWorldPosition(headPos);
+  resize(); setStatus('মাইক চালু হচ্ছে…'); autoStart();
+}, undefined, () => setStatus('মডেল লোড হয়নি, ইন্টারনেট চেক করুন'));
+
+function morph(name, v){
+  for (const m of morphMeshes){ const i = m.morphTargetDictionary[name]; if (i !== undefined) m.morphTargetInfluences[i] = v; }
+}
+const cur = {}; // smoothed values
+function setSmooth(name, target, k=0.35){ cur[name] = (cur[name] ?? 0) + (target - (cur[name] ?? 0)) * k; morph(name, cur[name]); }
+
+/* ---------- animation ---------- */
+let mouth = 0, speaking = false, nextBlink = 2, blinkT = -1, visemeIdx = 0, visemeT = 0, nudge = 0;
+const visemes = ['viseme_O','viseme_E','viseme_U','viseme_I','viseme_aa'];
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta(), t = clock.elapsedTime;
+  if (head) {
+    head.rotation.y = baseHead.y + Math.sin(t*0.6)*0.05 + (speaking ? Math.sin(t*3.1)*0.04 : 0);
+    head.rotation.x = baseHead.x + Math.sin(t*0.9)*0.02 + (speaking ? mouth*0.05 : 0) + nudge;
+    head.rotation.z = baseHead.z + Math.sin(t*0.45)*0.015;
+    nudge *= 0.92;
+  }
+  // mouth from live output amplitude
+  let amp = 0;
+  if (speaking && outAnalyser){
+    const a = new Uint8Array(outAnalyser.fftSize); outAnalyser.getByteTimeDomainData(a);
+    let s = 0; for (const v of a){ const x=(v-128)/128; s += x*x; } amp = Math.min(1, Math.sqrt(s/a.length) * 5);
+  }
+  mouth += (amp - mouth) * 0.45;
+  visemeT -= dt; if (visemeT <= 0){ visemeIdx = Math.floor(Math.random()*visemes.length); visemeT = 0.09 + Math.random()*0.1; }
+  setSmooth('jawOpen', mouth*0.55);
+  setSmooth('mouthOpen', mouth*0.25);
+  for (const v of visemes) setSmooth(v, speaking && v === visemes[visemeIdx] ? mouth*0.7 : 0, 0.4);
+  setSmooth('mouthSmile', speaking ? 0.18 : 0.12 + (listening ? 0.1 : 0), 0.1);
+  setSmooth('browInnerUp', listening && !speaking ? 0.25 : 0.08, 0.08);
+  // blinking
+  nextBlink -= dt;
+  if (nextBlink <= 0 && blinkT < 0){ blinkT = 0; nextBlink = 2 + Math.random()*3.5; }
+  let blink = 0; if (blinkT >= 0){ blinkT += dt; blink = Math.sin(Math.min(1, blinkT/0.16) * Math.PI); if (blinkT > 0.16) blinkT = -1; }
+  morph('eyeBlinkLeft', blink); morph('eyeBlinkRight', blink);
+  renderer.render(scene, camera);
+});
+renderer.domElement.addEventListener('pointerdown', () => { nudge = -0.08; if (ctx && ctx.state==='suspended') ctx.resume(); autoStart(); });
+
+/* ---------- voice: listen -> repeat in a higher, feminine voice ---------- */
+let ctx, stream, analyser, outAnalyser, rec, chunks = [], recording = false, listening = false, busy = false, lastLoud = 0, startedAt = 0, manualStop = false;
+const PITCH = 1.3;
 
 async function startListening(){
   try{
@@ -87,6 +121,7 @@ async function startListening(){
     stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } });
     const src = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
+    outAnalyser = ctx.createAnalyser(); outAnalyser.fftSize = 512; outAnalyser.connect(ctx.destination);
     listening = true; $('mic').classList.add('on'); setStatus('আমি শুনছি… কিছু বলুন 🙂');
     loop();
   }catch(e){ setStatus('মাইকের অনুমতি দিন, তারপর স্ক্রিনে একবার ট্যাপ করুন'); }
@@ -104,12 +139,8 @@ function loop(){
   if (!listening) return;
   if (!busy){
     const l = level(), now = performance.now();
-    if (l > 0.04){
-      lastLoud = now;
-      if (!recording) beginRec();
-    } else if (recording && now - lastLoud > 800){
-      endRec();
-    }
+    if (l > 0.04){ lastLoud = now; if (!recording) beginRec(); }
+    else if (recording && now - lastLoud > 800) endRec();
     if (recording && now - startedAt > 10000) endRec();
   }
   requestAnimationFrame(loop);
@@ -117,8 +148,7 @@ function loop(){
 function beginRec(){
   chunks = []; rec = new MediaRecorder(stream);
   rec.ondataavailable = e => chunks.push(e.data);
-  rec.onstop = onRecDone;
-  rec.start(); recording = true; startedAt = performance.now();
+  rec.onstop = onRecDone; rec.start(); recording = true; startedAt = performance.now();
 }
 function endRec(){ recording = false; if (rec && rec.state !== 'inactive') rec.stop(); }
 async function onRecDone(){
@@ -126,39 +156,17 @@ async function onRecDone(){
   busy = true;
   try{
     const buf = await ctx.decodeAudioData(await new Blob(chunks).arrayBuffer());
-    const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = 1.45;
-    s.connect(ctx.destination);
-    document.body.classList.add('talk'); setStatus('💬');
-    s.onended = () => { document.body.classList.remove('talk'); busy = false; setStatus('আমি শুনছি… কিছু বলুন 🙂'); };
+    const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = PITCH;
+    s.connect(outAnalyser);
+    speaking = true; setStatus('💬');
+    s.onended = () => { speaking = false; busy = false; setStatus('আমি শুনছি… কিছু বলুন 🙂'); };
     s.start();
   }catch(e){ busy = false; }
 }
-
-$('mic').onclick = () => listening ? stopListening() : startListening();
-// Auto-start: talk directly, no button press needed
-let manualStop = false;
-$('mic').addEventListener('click', () => { manualStop = !listening; });
 async function autoStart(){ if (!listening && !manualStop) await startListening(); }
-window.addEventListener('load', autoStart);
-// If the WebView blocks audio until first touch, any tap anywhere starts it
-document.addEventListener('pointerdown', () => { if (ctx && ctx.state === 'suspended') ctx.resume(); autoStart(); }, { passive:true });
-// Resume listening when returning to the app
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (ctx) ctx.resume(); if (!listening) autoStart(); } });
-// Keep going if the mic stream is cut by the system
-setInterval(() => { if (listening && stream && !stream.active) { listening = false; autoStart(); } }, 3000);
-$('feed').onclick = () => {
-  const foods = ['🍎','🍌','🍰','🍓','🍪','🍉']; const f = $('food');
-  f.textContent = foods[Math.floor(Math.random()*foods.length)];
-  const r = char.getBoundingClientRect();
-  f.style.left = (r.left + r.width/2 - 24) + 'px'; f.style.top = (r.top + r.height*.45) + 'px'; f.style.display='block';
-  beep(520,.1); setTimeout(()=>{ beep(780,.1); f.style.display='none'; bounce(); document.body.classList.add('talk'); setTimeout(()=>document.body.classList.remove('talk'),700); }, 500);
-};
-const dresses = ['#e2557a','#2e86de','#27ae60','#f39c12','#8e44ad','#2c3e50'];
-const scarves = ['#7b3fa0','#c0392b','#16a085','#2c3e50','#e67e22','#d35400'];
-let di=0, si=0;
-$('dressBtn').onclick = () => { di=(di+1)%dresses.length; root.style.setProperty('--dress', dresses[di]); bounce(); beep(600); };
-$('scarfBtn').onclick = () => { si=(si+1)%scarves.length; root.style.setProperty('--scarf', scarves[si]); bounce(); beep(660); };
-$('svg').onclick = () => { bounce(); beep(900,.08); document.body.classList.add('talk'); setTimeout(()=>document.body.classList.remove('talk'),400); };
+$('mic').onclick = () => { if (listening){ manualStop = true; stopListening(); } else { manualStop = false; startListening(); } };
+document.addEventListener('visibilitychange', () => { if (!document.hidden){ if (ctx) ctx.resume(); if (!listening) autoStart(); } });
+setInterval(() => { if (listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
 </script>
 </body>
 </html>
