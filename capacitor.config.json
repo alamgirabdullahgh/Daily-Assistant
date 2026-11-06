@@ -1,9 +1,9 @@
 {
   "appId": "com.alamgir.talkingwoman",
-  "appName": "Talking Woman",
+  "appName": "Daily Assistant",
   "webDir": "www",
   "server": {
-    "url": "https://alamgirabdullahgh.github.io/talking-woman/",
+    "url": "https://alamgirabdullahgh.github.io/Daily-Assistant/",
     "androidScheme": "https"
   }
 }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Talking Woman</title>
+<title>Daily Assistant</title>
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
   html,body { margin:0; height:100%; overflow:hidden; background:radial-gradient(ellipse at 50% 38%, #6a5a78 0%, #3a2f48 45%, #17131f 100%); font-family:system-ui,sans-serif; }
@@ -327,8 +327,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden){ if 
 setInterval(() => { if (!isNative && listening && stream && !stream.active){ listening = false; autoStart(); } }, 3000);
 
 /* ---------- update option ---------- */
-const REPO = 'alamgirabdullahgh/talking-woman';
-const APK_URL = 'https://github.com/' + REPO + '/releases/latest/download/TalkingWoman.apk';
+const REPO = 'alamgirabdullahgh/Daily-Assistant';
+const APK_URL = 'https://github.com/' + REPO + '/releases/latest/download/DailyAssistant.apk';
 let installedBuild = null, latestBuild = null;
 async function getInstalled(){
   try{ const A = Cap && Cap.Plugins && Cap.Plugins.App; if (A && A.getInfo){ const i = await A.getInfo(); return parseInt(i.build) || null; } }catch(e){}
