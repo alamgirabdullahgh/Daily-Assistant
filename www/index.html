@@ -6,11 +6,11 @@
 <title>Talking Woman</title>
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
-  html,body { margin:0; height:100%; overflow:hidden; background:#1b1722; font-family:system-ui,sans-serif; }
+  html,body { margin:0; height:100%; overflow:hidden; background:radial-gradient(ellipse at 50% 38%, #6a5a78 0%, #3a2f48 45%, #17131f 100%); font-family:system-ui,sans-serif; }
   canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
   #status { position:fixed; top:calc(env(safe-area-inset-top) + 12px); left:50%; transform:translateX(-50%); padding:6px 16px; border-radius:20px; background:#000a; color:#fff; font-size:14px; z-index:5; white-space:nowrap; }
-  #bar { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 22px); left:50%; transform:translateX(-50%); display:flex; gap:14px; z-index:5; }
-  #bar button { width:60px; height:60px; border:0; border-radius:50%; font-size:26px; background:#fff; box-shadow:0 3px 10px #0006; }
+  #bar { position:fixed; bottom:calc(env(safe-area-inset-bottom) + 22px); left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:5; }
+  #bar button { width:52px; height:52px; border:0; border-radius:50%; font-size:22px; background:#fff; box-shadow:0 3px 10px #0006; }
   #bar button.on { background:#ff8aa5; }
   #credit { position:fixed; bottom:4px; right:8px; font-size:9px; color:#fff6; z-index:5; }
   #upd.new { background:#7cffb2; animation:pl 1.2s infinite; }
@@ -30,7 +30,7 @@
 </head>
 <body>
 <div id="status">লোড হচ্ছে…</div>
-<div id="bar"><button id="lang">🌐</button><button id="mic">🎤</button><button id="voice">🔊</button><button id="upd">⬇️</button></div>
+<div id="bar"><button id="lang">🌐</button><button id="mic">🎤</button><button id="voice">🔊</button><button id="fit">👗</button><button id="upd">⬇️</button></div>
 <div id="sheet" hidden><div class="card">
   <h3>অ্যাপ আপডেট</h3>
   <div id="ver"></div><div id="msg"></div>
@@ -43,24 +43,29 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from './lib/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from './lib/jsm/environments/RoomEnvironment.js';
 
 const $ = id => document.getElementById(id);
 const statusEl = $('status');
 const setStatus = t => statusEl.textContent = t;
 
 /* ---------- 3D scene ---------- */
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x2a2336);
-const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 20);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x554466, 1.1));
-const key = new THREE.DirectionalLight(0xfff0e0, 2.2); key.position.set(1.2, 2.2, 2.5); scene.add(key);
-const rim = new THREE.DirectionalLight(0x9fb4ff, 1.0); rim.position.set(-2, 1.8, -1.5); scene.add(rim);
+scene.background = null;
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(34, 1, 0.05, 20);
+scene.add(new THREE.HemisphereLight(0xfff4ea, 0x554466, 0.45));
+const key = new THREE.DirectionalLight(0xffe9d6, 2.0); key.position.set(1.4, 2.4, 2.6); scene.add(key);
+const rim = new THREE.DirectionalLight(0xb9c8ff, 1.4); rim.position.set(-2, 2.0, -1.5); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffd2c0, 0.5); fill.position.set(-2, 1.0, 2); scene.add(fill);
 
 let head, neck, spine, morphMeshes = [], baseHead = new THREE.Euler(), baseNeck = new THREE.Euler();
 let headPos = new THREE.Vector3();
@@ -68,9 +73,13 @@ let headPos = new THREE.Vector3();
 function resize(){
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w/h;
-  const dist = (w/h < 0.8) ? 1.15 : 0.95;
-  camera.position.set(headPos.x, headPos.y + 0.02, headPos.z + dist);
-  camera.lookAt(headPos.x, headPos.y - 0.13, headPos.z);
+  // show from about the hips up to above the head, wide enough for the shoulders
+  const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const needH = 1.2, needW = 0.75;
+  const dist = Math.max(needH/(2*tanH), needW/(2*tanH*camera.aspect));
+  const cy = headPos.y - 0.36;
+  camera.position.set(headPos.x, cy + 0.04, headPos.z + dist);
+  camera.lookAt(headPos.x, cy, headPos.z);
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -79,14 +88,59 @@ new GLTFLoader().load('./models/woman.glb', gltf => {
   const model = gltf.scene; scene.add(model);
   model.traverse(o => {
     if (o.name === 'Wolf3D_Glasses') o.visible = false;
+    if (o.isMesh && o.material) { o.material.envMapIntensity = 0.6; o.frustumCulled = false; }
     if (o.isMesh && o.morphTargetDictionary) morphMeshes.push(o);
   });
+  styleModel(model);
   head = model.getObjectByName('Head'); neck = model.getObjectByName('Neck');
   if (head) baseHead.copy(head.rotation); if (neck) baseNeck.copy(neck.rotation);
   model.updateMatrixWorld(true);
   if (head) head.getWorldPosition(headPos);
   resize(); setStatus('মাইক চালু হচ্ছে…'); autoStart();
 }, undefined, () => setStatus('মডেল লোড হয়নি, ইন্টারনেট চেক করুন'));
+
+/* ---------- look & stylish outfits ---------- */
+const OUTFITS = [
+  { n:'এমারেল্ড সাটিন',   top:0x0f6b4f, bottom:0x15151a, shoe:0x15151a },
+  { n:'আইভরি ও ক্যামেল',  top:0xf1e8d8, bottom:0xb48a5a, shoe:0x8a5a35 },
+  { n:'ওয়াইন রেড',       top:0x7a1530, bottom:0x23232b, shoe:0x15151a },
+  { n:'নেভি ও হোয়াইট',   top:0x1d2f5c, bottom:0xf4f1ec, shoe:0xd9c4a8 },
+  { n:'ব্লাশ পিঙ্ক',      top:0xe9a9b5, bottom:0xe8e4de, shoe:0xf1e8d8 },
+  { n:'অল ব্ল্যাক চিক',    top:0x0e0e12, bottom:0x0e0e12, shoe:0xc9a24a },
+];
+let outfitIdx = parseInt(localStorage.getItem('outfit') ?? '0') % OUTFITS.length;
+const parts = {};
+function styleModel(model){
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    const old = o.material;
+    if (/Outfit_Top/.test(o.name)) parts.top = o;
+    if (/Outfit_Bottom/.test(o.name)) parts.bottom = o;
+    if (/Outfit_Footwear/.test(o.name)) parts.shoe = o;
+    if (/EyeLeft|EyeRight/.test(o.name)) { old.roughness = 0.08; old.metalness = 0; old.envMapIntensity = 1.2; }
+    if (/Wolf3D_Head|Wolf3D_Body/.test(o.name)) { old.roughness = 0.62; old.metalness = 0; }
+    if (/Wolf3D_Hair/.test(o.name)) { old.roughness = 0.42; old.envMapIntensity = 0.9; }
+  });
+  for (const k of ['top','bottom','shoe']){
+    const m = parts[k]; if (!m) continue;
+    const old = m.material;
+    m.material = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff, normalMap: old.normalMap, side: THREE.DoubleSide,
+      roughness: k==='top' ? 0.36 : k==='shoe' ? 0.3 : 0.55, metalness: k==='shoe' ? 0.15 : 0,
+      sheen: k==='top' ? 1 : 0.4, sheenRoughness: 0.35, sheenColor: new THREE.Color(0xffffff),
+      envMapIntensity: 0.7
+    });
+  }
+  applyOutfit(false);
+}
+function applyOutfit(announce){
+  const o = OUTFITS[outfitIdx];
+  if (parts.top)    { parts.top.material.color.setHex(o.top);       parts.top.material.sheenColor.setHex(o.top).offsetHSL(0,0,0.25); }
+  if (parts.bottom) { parts.bottom.material.color.setHex(o.bottom); parts.bottom.material.sheenColor.setHex(o.bottom).offsetHSL(0,0,0.2); }
+  if (parts.shoe)   { parts.shoe.material.color.setHex(o.shoe); }
+  if (announce) setStatus('👗 ' + o.n);
+}
+$('fit').onclick = () => { outfitIdx = (outfitIdx + 1) % OUTFITS.length; localStorage.setItem('outfit', String(outfitIdx)); applyOutfit(true); nudge = -0.06; };
 
 function morph(name, v){
   for (const m of morphMeshes){ const i = m.morphTargetDictionary[name]; if (i !== undefined) m.morphTargetInfluences[i] = v; }
